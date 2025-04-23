@@ -2,7 +2,7 @@ name: Backup Data
 
 on:
   schedule:
-    - cron: "0 1 * * *"  # каждый день в 03:00 по Киеву (00:00 UTC)
+    - cron: "0 * * * *"  # запуск каждый час (в начале часа)
   workflow_dispatch:  # запуск вручную
 
 jobs:
