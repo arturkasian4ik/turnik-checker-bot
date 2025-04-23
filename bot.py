@@ -18,12 +18,12 @@ DATA_FILE = "data.json"
 # Клавиатура с кнопками
 keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
 keyboard.add(
-    KeyboardButton("📥 Отметить день"),
-    KeyboardButton("📊 Моя серия")
+    KeyboardButton("📥 Check in"),
+    KeyboardButton("📊 My streak")
 ).add(
-    KeyboardButton("🔝 Топ серия"),
-    KeyboardButton("🏆 Топ все время"),
-    KeyboardButton("📈 График")
+    KeyboardButton("🔝 Top streaks"),
+    KeyboardButton("🏆 All-time top"),
+    KeyboardButton("📈 Activity graph")
 )
 
 if not os.path.exists(DATA_FILE):
