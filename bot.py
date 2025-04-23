@@ -15,7 +15,7 @@ dp = Dispatcher(bot)
 
 DATA_FILE = "data.json"
 
-# English keyboard
+# English keyboard with human-friendly labels
 keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
 keyboard.add(
     KeyboardButton("📥 Check in"),
@@ -44,12 +44,12 @@ async def start(message: Message):
     text = f"""Hello, {username}!
 
 I'm Pull-up Tracker Bot 💪
-I'll help you track your daily workout progress.
+I'll help you track your daily workout progress — globally!
 
 Just press '📥 Check in' after each workout day.
 
-Available commands:
-📥 Check in — mark your workout today
+Available options:
+📥 Check in — mark today's workout
 📊 My streak — show your current streak
 🔝 Top streaks — leaderboard by streak
 🏆 All-time top — total workouts leaderboard
@@ -60,17 +60,13 @@ Available commands:
 @dp.message_handler(commands=["turnik"])
 async def checkin(message: Message):
     data = load_data()
-    chat_id = str(message.chat.id)
     user_id = str(message.from_user.id)
     username = message.from_user.username or message.from_user.full_name
     now = datetime.now().date()
     now_str = str(now)
 
-    if chat_id not in data:
-        data[chat_id] = {}
-
-    if user_id not in data[chat_id]:
-        data[chat_id][user_id] = {
+    if user_id not in data:
+        data[user_id] = {
             "username": username,
             "current_streak": 1,
             "total_days": 1,
@@ -79,7 +75,7 @@ async def checkin(message: Message):
         }
         await message.reply(f"{username}, your first day is checked in!", reply_markup=keyboard)
     else:
-        user = data[chat_id][user_id]
+        user = data[user_id]
         last = datetime.fromisoformat(user["last_checkin"]).date()
 
         if now == last:
@@ -94,11 +90,8 @@ async def checkin(message: Message):
         user["total_days"] += 1
         user["last_checkin"] = now_str
 
-        if "checkin_dates" not in user:
-            user["checkin_dates"] = []
-
-        if now_str not in user["checkin_dates"]:
-            user["checkin_dates"].append(now_str)
+        if now_str not in user.get("checkin_dates", []):
+            user.setdefault("checkin_dates", []).append(now_str)
 
         await message.reply(f"{username}, logged! Your streak: {user['current_streak']} days", reply_markup=keyboard)
 
@@ -107,11 +100,10 @@ async def checkin(message: Message):
 @dp.message_handler(commands=["status"])
 async def status(message: Message):
     data = load_data()
-    chat_id = str(message.chat.id)
     user_id = str(message.from_user.id)
 
-    if chat_id in data and user_id in data[chat_id]:
-        user = data[chat_id][user_id]
+    if user_id in data:
+        user = data[user_id]
         await message.reply(
             f"📊 Your streak: {user['current_streak']} days in a row\nTotal check-ins: {user.get('total_days', 0)}",
             reply_markup=keyboard
@@ -122,14 +114,9 @@ async def status(message: Message):
 @dp.message_handler(commands=["leaders"])
 async def leaders(message: Message):
     data = load_data()
-    chat_id = str(message.chat.id)
 
-    if chat_id not in data:
-        await message.reply("No one has checked in yet.", reply_markup=keyboard)
-        return
-
-    leaderboard = sorted(data[chat_id].items(), key=lambda x: x[1]["current_streak"], reverse=True)
-    text = "**🔥 Top current streaks:**\n"
+    leaderboard = sorted(data.items(), key=lambda x: x[1]["current_streak"], reverse=True)
+    text = "**🔥 Global Top Current Streaks:**\n"
     for i, (uid, udata) in enumerate(leaderboard, 1):
         text += f"{i}. @{udata['username']}: {udata['current_streak']} days\n"
 
@@ -138,14 +125,9 @@ async def leaders(message: Message):
 @dp.message_handler(commands=["leaders_all"])
 async def leaders_all(message: Message):
     data = load_data()
-    chat_id = str(message.chat.id)
 
-    if chat_id not in data:
-        await message.reply("No data available.", reply_markup=keyboard)
-        return
-
-    leaderboard = sorted(data[chat_id].items(), key=lambda x: x[1].get("total_days", 0), reverse=True)
-    text = "**🏆 All-time top:**\n"
+    leaderboard = sorted(data.items(), key=lambda x: x[1].get("total_days", 0), reverse=True)
+    text = "**🏆 Global All-Time Top:**\n"
     for i, (uid, udata) in enumerate(leaderboard, 1):
         total = udata.get("total_days", 0)
         text += f"{i}. @{udata['username']}: {total} check-ins\n"
@@ -155,14 +137,13 @@ async def leaders_all(message: Message):
 @dp.message_handler(commands=["graph"])
 async def graph(message: Message):
     data = load_data()
-    chat_id = str(message.chat.id)
     user_id = str(message.from_user.id)
 
-    if chat_id not in data or user_id not in data[chat_id]:
+    if user_id not in data:
         await message.reply("No data to show. Please check in first.", reply_markup=keyboard)
         return
 
-    user = data[chat_id][user_id]
+    user = data[user_id]
     dates = user.get("checkin_dates", [])
 
     if not dates:
@@ -193,7 +174,7 @@ async def graph(message: Message):
     await bot.send_photo(message.chat.id, photo, caption="Here's your activity graph 💪", reply_markup=keyboard)
     os.remove(filename)
 
-# Button actions (mapped to functions)
+# Button text triggers
 @dp.message_handler(lambda message: message.text == "📥 Check in")
 async def btn_checkin(message: Message):
     await checkin(message)
