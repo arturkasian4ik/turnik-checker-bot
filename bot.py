@@ -1,4 +1,3 @@
-
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message, InputFile, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
@@ -6,16 +5,18 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 import json
-import matplotlib.pyplot as plt
+import requests
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
 
-DATA_FILE = "data.json"
+# URL для вызова GitHub Actions вручную
+GITHUB_API_URL = "https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/backup.yml/dispatches"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")  # Токен для работы с GitHub API
 
-# English keyboard with human-friendly labels
+# Клавиатура с кнопками (убрали кнопку графика)
 keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
 keyboard.add(
     KeyboardButton("📥 Check in"),
@@ -23,8 +24,9 @@ keyboard.add(
 ).add(
     KeyboardButton("🔝 Top streaks"),
     KeyboardButton("🏆 All-time top"),
-    KeyboardButton("📈 Activity graph")
 )
+
+DATA_FILE = "data.json"
 
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, "w") as f:
@@ -41,20 +43,7 @@ def save_data(data):
 @dp.message_handler(commands=["start"])
 async def start(message: Message):
     username = message.from_user.username or message.from_user.full_name
-    text = f"""Hello, {username}!
-
-I'm Pull-up Tracker Bot 💪
-I'll help you track your daily workout progress — globally!
-
-Just press '📥 Check in' after each workout day.
-
-Available options:
-📥 Check in — mark today's workout
-📊 My streak — show your current streak
-🔝 Top streaks — leaderboard by streak
-🏆 All-time top — total workouts leaderboard
-📈 Activity graph — your progress graph
-"""
+    text = f"Hello, {username}!\n\nI'm Pull-up Tracker Bot 💪\n\nJust press '📥 Check in' after each workout day.\n\nAvailable options:\n📥 Check in — mark today's workout\n📊 My streak — show your current streak\n🔝 Top streaks — leaderboard by streak\n🏆 All-time top — total workouts leaderboard"
     await message.reply(text, reply_markup=keyboard)
 
 @dp.message_handler(commands=["turnik"])
@@ -105,7 +94,7 @@ async def status(message: Message):
     if user_id in data:
         user = data[user_id]
         await message.reply(
-            f"📊 Your streak: {user['current_streak']} days in a row\nTotal check-ins: {user.get('total_days', 0)}",
+            f"📊 Your streak: {user['current_streak']} days in a row\\nTotal check-ins: {user.get('total_days', 0)}",
             reply_markup=keyboard
         )
     else:
@@ -116,9 +105,9 @@ async def leaders(message: Message):
     data = load_data()
 
     leaderboard = sorted(data.items(), key=lambda x: x[1]["current_streak"], reverse=True)
-    text = "**🔥 Global Top Current Streaks:**\n"
+    text = "**🔥 Global Top Current Streaks:**\\n"
     for i, (uid, udata) in enumerate(leaderboard, 1):
-        text += f"{i}. @{udata['username']}: {udata['current_streak']} days\n"
+        text += f"{i}. @{udata['username']}: {udata['current_streak']} days\\n"
 
     await message.reply(text, reply_markup=keyboard)
 
@@ -127,73 +116,38 @@ async def leaders_all(message: Message):
     data = load_data()
 
     leaderboard = sorted(data.items(), key=lambda x: x[1].get("total_days", 0), reverse=True)
-    text = "**🏆 Global All-Time Top:**\n"
+    text = "**🏆 Global All-Time Top:**\\n"
     for i, (uid, udata) in enumerate(leaderboard, 1):
         total = udata.get("total_days", 0)
-        text += f"{i}. @{udata['username']}: {total} check-ins\n"
+        text += f"{i}. @{udata['username']}: {total} check-ins\\n"
 
     await message.reply(text, reply_markup=keyboard)
 
-@dp.message_handler(commands=["graph"])
-async def graph(message: Message):
-    data = load_data()
-    user_id = str(message.from_user.id)
+# Function to call GitHub Actions for backup
+@dp.message_handler(commands=["save_backup"])
+async def save_backup(message: Message):
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    payload = {
+        "ref": "main"
+    }
 
-    if user_id not in data:
-        await message.reply("No data to show. Please check in first.", reply_markup=keyboard)
-        return
-
-    user = data[user_id]
-    dates = user.get("checkin_dates", [])
-
-    if not dates:
-        await message.reply("No data to plot.", reply_markup=keyboard)
-        return
-
-    dates_sorted = sorted(dates)
-    date_counts = {}
-    for d in dates_sorted:
-        date_counts[d] = date_counts.get(d, 0) + 1
-
-    x = list(date_counts.keys())
-    y = list(date_counts.values())
-
-    plt.figure(figsize=(8, 4))
-    plt.plot(x, y, marker='o')
-    plt.xticks(rotation=45, ha='right')
-    plt.title("Activity Over Time")
-    plt.xlabel("Date")
-    plt.ylabel("Check-ins")
-    plt.tight_layout()
-
-    filename = f"graph_{user_id}.png"
-    plt.savefig(filename)
-    plt.close()
-
-    photo = InputFile(filename)
-    await bot.send_photo(message.chat.id, photo, caption="Here's your activity graph 💪", reply_markup=keyboard)
-    os.remove(filename)
-
-# Button text triggers
-@dp.message_handler(lambda message: message.text == "📥 Check in")
-async def btn_checkin(message: Message):
-    await checkin(message)
-
-@dp.message_handler(lambda message: message.text == "📊 My streak")
-async def btn_status(message: Message):
-    await status(message)
-
-@dp.message_handler(lambda message: message.text == "🔝 Top streaks")
-async def btn_leaders(message: Message):
-    await leaders(message)
-
-@dp.message_handler(lambda message: message.text == "🏆 All-time top")
-async def btn_leaders_all(message: Message):
-    await leaders_all(message)
-
-@dp.message_handler(lambda message: message.text == "📈 Activity graph")
-async def btn_graph(message: Message):
-    await graph(message)
+    try:
+        response = requests.post(GITHUB_API_URL, json=payload, headers=headers)
+        if response.status_code == 201:
+            await message.reply("Backup started successfully! 🚀", reply_markup=keyboard)
+        else:
+            await message.reply(f"Failed to start backup. Error: {response.status_code}", reply_markup=keyboard)
+    except Exception as e:
+        await message.reply(f"An error occurred: {str(e)}", reply_markup=keyboard)
 
 if __name__ == "__main__":
     executor.start_polling(dp)
+"""
+
+with open("/mnt/data/bot.py", "w", encoding="utf-8") as f:
+    f.write(english_bot_code)
+
+"/mnt/data/bot.py"
