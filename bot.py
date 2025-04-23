@@ -43,7 +43,19 @@ def save_data(data):
 @dp.message_handler(commands=["start"])
 async def start(message: Message):
     username = message.from_user.username or message.from_user.full_name
-    text = f"Hello, {username}!\n\nI'm Pull-up Tracker Bot 💪\n\nJust press '📥 Check in' after each workout day.\n\nAvailable options:\n📥 Check in — mark today's workout\n📊 My streak — show your current streak\n🔝 Top streaks — leaderboard by streak\n🏆 All-time top — total workouts leaderboard"
+    text = f"""Hello, {username}!
+
+I'm Pull-up Tracker Bot 💪
+I'll help you track your daily workout progress — globally!
+
+Just press '📥 Check in' after each workout day.
+
+Available options:
+📥 Check in — mark today's workout
+📊 My streak — show your current streak
+🔝 Top streaks — leaderboard by streak
+🏆 All-time top — total workouts leaderboard
+"""
     await message.reply(text, reply_markup=keyboard)
 
 @dp.message_handler(commands=["turnik"])
@@ -148,6 +160,6 @@ if __name__ == "__main__":
 """
 
 with open("/mnt/data/bot.py", "w", encoding="utf-8") as f:
-    f.write(english_bot_code)
+    f.write(corrected_bot_code)
 
 "/mnt/data/bot.py"
