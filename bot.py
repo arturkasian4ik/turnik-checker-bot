@@ -26,6 +26,26 @@ keyboard.add(
     KeyboardButton("📈 Activity graph")
 )
 
+@dp.message_handler(lambda message: message.text == "📥 Check in")
+async def handle_checkin_button(message: Message):
+    await checkin(message)
+
+@dp.message_handler(lambda message: message.text == "📊 My streak")
+async def handle_status_button(message: Message):
+    await status(message)
+
+@dp.message_handler(lambda message: message.text == "🔝 Top streaks")
+async def handle_leaders_button(message: Message):
+    await leaders(message)
+
+@dp.message_handler(lambda message: message.text == "🏆 All-time top")
+async def handle_leaders_all_button(message: Message):
+    await leaders_all(message)
+
+@dp.message_handler(lambda message: message.text == "📈 Activity graph")
+async def handle_graph_button(message: Message):
+    await graph(message)
+
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, "w") as f:
         json.dump({}, f)
