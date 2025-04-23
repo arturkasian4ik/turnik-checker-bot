@@ -23,8 +23,24 @@ keyboard.add(
     KeyboardButton("📊 My streak")
 ).add(
     KeyboardButton("🔝 Top streaks"),
-    KeyboardButton("🏆 All-time top"),
+    KeyboardButton("🏆 All-time top")
 )
+
+@dp.message_handler(lambda message: message.text == "📥 Check in")
+async def handle_checkin_button(message: Message):
+    await checkin(message)
+
+@dp.message_handler(lambda message: message.text == "📊 My streak")
+async def handle_status_button(message: Message):
+    await status(message)
+
+@dp.message_handler(lambda message: message.text == "🔝 Top streaks")
+async def handle_leaders_button(message: Message):
+    await leaders(message)
+
+@dp.message_handler(lambda message: message.text == "🏆 All-time top")
+async def handle_leaders_all_button(message: Message):
+    await leaders_all(message)
 
 DATA_FILE = "data.json"
 
