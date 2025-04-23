@@ -157,9 +157,3 @@ async def save_backup(message: Message):
 
 if __name__ == "__main__":
     executor.start_polling(dp)
-"""
-
-with open("/mnt/data/bot.py", "w", encoding="utf-8") as f:
-    f.write(corrected_bot_code)
-
-"/mnt/data/bot.py"
