@@ -1,7 +1,7 @@
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message, InputFile, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
-from aiohttp import web
+from aiohttp import web  # Для работы с webhook
 from dotenv import load_dotenv
 import os
 import json
