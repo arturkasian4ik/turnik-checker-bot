@@ -1,26 +1,29 @@
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message, InputFile, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
-from aiohttp import web  # Для работы с webhook
+from aiohttp import web
 from dotenv import load_dotenv
 import os
 import json
 import requests
 from datetime import datetime, timedelta
 
+# Загружаем переменные окружения
 load_dotenv()
+
 TOKEN = os.getenv("BOT_TOKEN")
+GITHUB_API_URL = "https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/backup.yml/dispatches"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
+# Инициализация бота и диспетчера
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
 
-# URL для вызова GitHub Actions вручную
-GITHUB_API_URL = "https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/backup.yml/dispatches"
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")  # Токен для работы с GitHub API
-
-# Динамически получаем порт из переменной окружения
+# URL для Webhook (Render)
+WEBHOOK_URL = 'https://turnik-checker-bot.onrender.com/webhook'
 PORT = int(os.getenv('PORT', 5000))
 
-# Клавиатура с кнопками (обновляем на Inline)
+# Клавиатура с кнопками
 keyboard = InlineKeyboardMarkup(row_width=2)
 keyboard.add(
     InlineKeyboardButton("📥 Check in", callback_data="checkin"),
@@ -30,13 +33,14 @@ keyboard.add(
     InlineKeyboardButton("🏆 All-time top", callback_data="leaders_all")
 )
 
-# Функции для работы с данными
+# Файл для хранения данных
 DATA_FILE = "data.json"
 
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, "w") as f:
         json.dump({}, f)
 
+# Загрузка и сохранение данных
 def load_data():
     with open(DATA_FILE, "r") as f:
         return json.load(f)
@@ -45,11 +49,11 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-# Устанавливаем Webhook
+# Установка Webhook
 async def on_start():
-    await bot.set_webhook(f'https://yourapp.onrender.com/webhook')
+    await bot.set_webhook(WEBHOOK_URL)
 
-# Обработчики команд
+# Команда /start
 @dp.message_handler(commands=["start"])
 async def start(message: Message):
     username = message.from_user.username or message.from_user.full_name
@@ -68,11 +72,12 @@ Available options:
 """
     await message.reply(text, reply_markup=keyboard)
 
-@dp.message_handler(commands=["turnik"])
-async def checkin(message: Message):
+# Обработчик для кнопки "Check in"
+@dp.callback_query_handler(lambda c: c.data == 'checkin')
+async def callback_checkin(callback_query: types.CallbackQuery):
+    user_id = str(callback_query.from_user.id)
+    username = callback_query.from_user.username or callback_query.from_user.full_name
     data = load_data()
-    user_id = str(message.from_user.id)
-    username = message.from_user.username or message.from_user.full_name
     now = datetime.now().date()
     now_str = str(now)
 
@@ -84,13 +89,13 @@ async def checkin(message: Message):
             "checkin_dates": [now_str],
             "last_checkin": now_str
         }
-        await message.reply(f"{username}, your first day is checked in!", reply_markup=keyboard)
+        await callback_query.message.answer(f"{username}, your first day is checked in!", reply_markup=keyboard)
     else:
         user = data[user_id]
         last = datetime.fromisoformat(user["last_checkin"]).date()
 
         if now == last:
-            await message.reply(f"{username}, you've already checked in today!", reply_markup=keyboard)
+            await callback_query.message.answer(f"{username}, you've already checked in today!", reply_markup=keyboard)
             return
 
         if now - last == timedelta(days=1):
@@ -104,48 +109,51 @@ async def checkin(message: Message):
         if now_str not in user.get("checkin_dates", []):
             user.setdefault("checkin_dates", []).append(now_str)
 
-        await message.reply(f"{username}, logged! Your streak: {user['current_streak']} days", reply_markup=keyboard)
+        await callback_query.message.answer(f"{username}, logged! Your streak: {user['current_streak']} days", reply_markup=keyboard)
 
     save_data(data)
 
-@dp.message_handler(commands=["status"])
-async def status(message: Message):
+# Команда /status
+@dp.callback_query_handler(lambda c: c.data == 'status')
+async def callback_status(callback_query: types.CallbackQuery):
     data = load_data()
-    user_id = str(message.from_user.id)
+    user_id = str(callback_query.from_user.id)
 
     if user_id in data:
         user = data[user_id]
-        await message.reply(
-            f"📊 Your streak: {user['current_streak']} days in a row\\nTotal check-ins: {user.get('total_days', 0)}",
+        await callback_query.message.answer(
+            f"📊 Your streak: {user['current_streak']} days in a row\nTotal check-ins: {user.get('total_days', 0)}",
             reply_markup=keyboard
         )
     else:
-        await message.reply("You haven't checked in yet. Press '📥 Check in'", reply_markup=keyboard)
+        await callback_query.message.answer("You haven't checked in yet. Press '📥 Check in'", reply_markup=keyboard)
 
-@dp.message_handler(commands=["leaders"])
-async def leaders(message: Message):
+# Команда /leaders (Топ по серии)
+@dp.callback_query_handler(lambda c: c.data == 'leaders')
+async def callback_leaders(callback_query: types.CallbackQuery):
     data = load_data()
 
     leaderboard = sorted(data.items(), key=lambda x: x[1]["current_streak"], reverse=True)
-    text = "**🔥 Global Top Current Streaks:**\\n"
+    text = "**🔥 Global Top Current Streaks:**\n"
     for i, (uid, udata) in enumerate(leaderboard, 1):
-        text += f"{i}. @{udata['username']}: {udata['current_streak']} days\\n"
+        text += f"{i}. @{udata['username']}: {udata['current_streak']} days\n"
 
-    await message.reply(text, reply_markup=keyboard)
+    await callback_query.message.answer(text, reply_markup=keyboard)
 
-@dp.message_handler(commands=["leaders_all"])
-async def leaders_all(message: Message):
+# Команда /leaders_all (Топ по всем тренировкам)
+@dp.callback_query_handler(lambda c: c.data == 'leaders_all')
+async def callback_leaders_all(callback_query: types.CallbackQuery):
     data = load_data()
 
     leaderboard = sorted(data.items(), key=lambda x: x[1].get("total_days", 0), reverse=True)
-    text = "**🏆 Global All-Time Top:**\\n"
+    text = "**🏆 Global All-Time Top:**\n"
     for i, (uid, udata) in enumerate(leaderboard, 1):
         total = udata.get("total_days", 0)
-        text += f"{i}. @{udata['username']}: {total} check-ins\\n"
+        text += f"{i}. @{udata['username']}: {total} check-ins\n"
 
-    await message.reply(text, reply_markup=keyboard)
+    await callback_query.message.answer(text, reply_markup=keyboard)
 
-# Function to call GitHub Actions for backup
+# Функция для сохранения данных в GitHub (backup)
 @dp.message_handler(commands=["save_backup"])
 async def save_backup(message: Message):
     headers = {
@@ -164,27 +172,6 @@ async def save_backup(message: Message):
             await message.reply(f"Failed to start backup. Error: {response.status_code}", reply_markup=keyboard)
     except Exception as e:
         await message.reply(f"An error occurred: {str(e)}", reply_markup=keyboard)
-
-# Обработчик для inline кнопок (callback_data)
-@dp.callback_query_handler(lambda c: c.data == 'checkin')
-async def callback_checkin(callback_query: types.CallbackQuery):
-    message = callback_query.message
-    await checkin(message)
-
-@dp.callback_query_handler(lambda c: c.data == 'status')
-async def callback_status(callback_query: types.CallbackQuery):
-    message = callback_query.message
-    await status(message)
-
-@dp.callback_query_handler(lambda c: c.data == 'leaders')
-async def callback_leaders(callback_query: types.CallbackQuery):
-    message = callback_query.message
-    await leaders(message)
-
-@dp.callback_query_handler(lambda c: c.data == 'leaders_all')
-async def callback_leaders_all(callback_query: types.CallbackQuery):
-    message = callback_query.message
-    await leaders_all(message)
 
 # Главная функция запуска бота с Webhook
 async def main():
