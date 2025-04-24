@@ -177,7 +177,7 @@ async def save_backup(message: Message):
 async def main():
     await on_start()  # Устанавливаем webhook
     app = web.Application()
-    app.router.add_post('/webhook', dp.start_webhook)  # Обработчик для webhook
+    app.router.add_post('/webhook', dp.handle_webhook)  # Обработчик для webhook
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
