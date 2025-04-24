@@ -15,11 +15,9 @@ TOKEN = os.getenv("BOT_TOKEN")
 GITHUB_API_URL = "https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/backup.yml/dispatches"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
-# Инициализация бота и диспетчера
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
 
-# URL для Webhook (Render)
 WEBHOOK_URL = 'https://turnik-checker-bot.onrender.com/webhook'
 PORT = int(os.getenv('PORT', 5000))
 
@@ -185,11 +183,10 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
-    # Запуск Webhook с помощью executor
+    # Запуск Webhook с помощью executor (без on_start)
     executor.start_webhook(
         dp, 
         webhook_path='/webhook',
-        on_start=on_start, 
         skip_updates=True, 
         host='0.0.0.0', 
         port=PORT
