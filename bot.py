@@ -19,7 +19,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
 
 WEBHOOK_URL = 'https://turnik-checker-bot.onrender.com/webhook'
-PORT = int(os.getenv('PORT', 5000))
+PORT = int(os.getenv('PORT', 10000))
 
 # Клавиатура с кнопками
 keyboard = InlineKeyboardMarkup(row_width=2)
