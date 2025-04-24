@@ -1,11 +1,12 @@
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message, InputFile, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, InputFile, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
-from datetime import datetime, timedelta
+from aiohttp import web
 from dotenv import load_dotenv
 import os
 import json
 import requests
+from datetime import datetime, timedelta
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -16,32 +17,20 @@ dp = Dispatcher(bot)
 GITHUB_API_URL = "https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/backup.yml/dispatches"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")  # Токен для работы с GitHub API
 
-# Клавиатура с кнопками (убрали кнопку графика)
-keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+# Динамически получаем порт из переменной окружения
+PORT = int(os.getenv('PORT', 5000))
+
+# Клавиатура с кнопками (обновляем на Inline)
+keyboard = InlineKeyboardMarkup(row_width=2)
 keyboard.add(
-    KeyboardButton("📥 Check in"),
-    KeyboardButton("📊 My streak")
+    InlineKeyboardButton("📥 Check in", callback_data="checkin"),
+    InlineKeyboardButton("📊 My streak", callback_data="status")
 ).add(
-    KeyboardButton("🔝 Top streaks"),
-    KeyboardButton("🏆 All-time top")
+    InlineKeyboardButton("🔝 Top streaks", callback_data="leaders"),
+    InlineKeyboardButton("🏆 All-time top", callback_data="leaders_all")
 )
 
-@dp.message_handler(lambda message: message.text == "📥 Check in")
-async def handle_checkin_button(message: Message):
-    await checkin(message)
-
-@dp.message_handler(lambda message: message.text == "📊 My streak")
-async def handle_status_button(message: Message):
-    await status(message)
-
-@dp.message_handler(lambda message: message.text == "🔝 Top streaks")
-async def handle_leaders_button(message: Message):
-    await leaders(message)
-
-@dp.message_handler(lambda message: message.text == "🏆 All-time top")
-async def handle_leaders_all_button(message: Message):
-    await leaders_all(message)
-
+# Функции для работы с данными
 DATA_FILE = "data.json"
 
 if not os.path.exists(DATA_FILE):
@@ -56,6 +45,11 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
+# Устанавливаем Webhook
+async def on_start():
+    await bot.set_webhook(f'https://yourapp.onrender.com/webhook')
+
+# Обработчики команд
 @dp.message_handler(commands=["start"])
 async def start(message: Message):
     username = message.from_user.username or message.from_user.full_name
@@ -171,5 +165,37 @@ async def save_backup(message: Message):
     except Exception as e:
         await message.reply(f"An error occurred: {str(e)}", reply_markup=keyboard)
 
+# Обработчик для inline кнопок (callback_data)
+@dp.callback_query_handler(lambda c: c.data == 'checkin')
+async def callback_checkin(callback_query: types.CallbackQuery):
+    message = callback_query.message
+    await checkin(message)
+
+@dp.callback_query_handler(lambda c: c.data == 'status')
+async def callback_status(callback_query: types.CallbackQuery):
+    message = callback_query.message
+    await status(message)
+
+@dp.callback_query_handler(lambda c: c.data == 'leaders')
+async def callback_leaders(callback_query: types.CallbackQuery):
+    message = callback_query.message
+    await leaders(message)
+
+@dp.callback_query_handler(lambda c: c.data == 'leaders_all')
+async def callback_leaders_all(callback_query: types.CallbackQuery):
+    message = callback_query.message
+    await leaders_all(message)
+
+# Главная функция запуска бота с Webhook
+async def main():
+    await on_start()  # Устанавливаем webhook
+    app = web.Application()
+    app.router.add_post('/webhook', dp.start_webhook)  # Обработчик для webhook
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
 if __name__ == "__main__":
-    executor.start_polling(dp)
+    import asyncio
+    asyncio.run(main())  # Запускаем сервер на Render
